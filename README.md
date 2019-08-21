@@ -1,2 +1,9 @@
-# word-game-serv
-word-game-bcknd
+# word-game-server
+
+## Available Scripts
+
+In the project directory, you can run:
+
+### `npm start`
+
+Runs the app in the development mode.<br>
