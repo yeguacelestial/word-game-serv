@@ -1,20 +1,21 @@
 var io = require('socket.io')();
+var _ = require('underscore');
+
 var players = require('./players');
 var lobbies = require('./lobbies');
 
-io.on('connection', (socket) => {
+const port = 8000;
+
+io.on('connection', socket => {
     console.log();
-    console.log('client connected');
-    console.log('socket.id:', socket.id);
+    console.log('Client connected');
+    console.log('Socket ID:', socket.id);
 
-    socket.on('disconnect', reason => {
-        console.log('client disconnected:', reason);
-        players.delete(socket.id);
-    });
+    socket.on('disconnect', reason => players.disconnect(socket.id, reason));
 
-    socket.on('player:register', data => players.update(socket.id, data));
+    socket.on('player:create', data => players.create(socket.id, data));
+    socket.on('player:update', data => players.update(socket.id, data));
 });
 
-const port = 8000;
 io.listen(port);
-console.log('listening on port ', port);
+console.log('Listening on port', port);
