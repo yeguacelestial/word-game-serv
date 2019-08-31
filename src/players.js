@@ -1,58 +1,70 @@
-var _ = require('underscore');
-var Player = require('./player');
+const _ = require('underscore');
+const chalk = require('chalk');
 
-class Players {
-    constructor() {
-        this._players = [];
+const emitter = require('./event_emmiter');
+const Player = require('./player');
+
+var players = {};
+
+function getAll()
+{
+    return players;
+}
+
+function getById(id)
+{
+    return players[id];
+}
+
+function hasPlayer(id)
+{
+    return players[id] !== undefined;
+}
+
+function updatePlayer(id, data)
+{
+    if(hasPlayer(id)) {
+        const before = players[id].toString();
+        const after = players[id].update(data).toString();
+
+        console.log(chalk.blue(before, '=>', after));
+
+        return players[id];
     }
 
-    create(id, data) {
-        this.disconnect(id);
+    return null;
+}
 
-        const player = new Player(id, data);
-        this._players[id] = player;
+function createPlayer(id, data)
+{
+    deletePlayer(id);
 
-        console.log('Player created\n', player);
-    }
+    players[id] = new Player(id, data);
 
-    update(id, data) {
-        if(_.isUndefined(this._players[id]))
-            console.error('Error updating player. Player with id', id, 'doesn\'t exist');
-        else {
-            this._players[id].update(data);
-            console.log('Player updated\n', this._players[id]);
-        }
-    }
+    console.log(chalk.green(players[id].toString()));
 
-    disconnect(id, reason) {
-        const player = this._players[id];
+    return players[id];
+}
 
-        if(_.isUndefined(player))
-            console.error('Error disconnecting player. Player with id', id, 'doesn\'t exist');
-        else {
-            console.log('Player disconnected, reason:', reason, '\n', player);
+function deletePlayer(id)
+{
+    const player = getById(id);
 
-            delete this._players[id];
-        }
-    }
+    if(player) {
+        console.log(chalk.red(player.toString()));
 
-    join(id, data) {
-        const player = this._players[id];
+        if(player.inLobby())
+            emitter.emit('lobby:player:exit', player.lobby, id);
 
-        if(_.isUndefined(player))
-            console.error('Error joining lobby. Player with id', id, 'doesn\'t exist');
-        else {
-            // TODO: Lobby joining
-        }
-    }
-
-    getById(id) {
-        return this._players[id];
-    }
-
-    getByName(name) {
-        return this._players.find(player => player.name === name);
+        delete players[id];
     }
 }
 
-module.exports = new Players();
+module.exports = {
+    getAll,
+    getById,
+    hasPlayer,
+    deletePlayer,
+    createPlayer,
+    updatePlayer,
+}

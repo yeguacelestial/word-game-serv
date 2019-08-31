@@ -1,20 +1,30 @@
-var io = require('socket.io')();
-var _ = require('underscore');
+const io = require('socket.io')();
+const _ = require('underscore');
+const chalk = require('chalk');
 
-var players = require('./players');
-var lobbies = require('./lobbies');
+const lobbies = require('./lobbies');
+const players = require('./players');
 
 const port = 8000;
 
-io.on('connection', socket => {
+io.on('connection', client => {
     console.log();
-    console.log('Client connected');
-    console.log('Socket ID:', socket.id);
+    console.log(chalk.green.bold('Client connected\nClient ID:', client.id));
 
-    socket.on('disconnect', reason => players.disconnect(socket.id, reason));
+    const on = (event, func) => client.on(event, (data, callback) => {
+        const obj = _.isFunction(func) ? func(client.id, data) :  null;
+        if(_.isFunction(callback)) callback(obj);
+    });
 
-    socket.on('player:create', data => players.create(socket.id, data));
-    socket.on('player:update', data => players.update(socket.id, data));
+    on('disconnect', (id, reason) => {
+        console.log(chalk.red.bold('Client disconnected, reason: ', reason, '\nClient ID:', id));
+        players.deletePlayer(id);
+    });
+
+    on('player:create', players.createPlayer);
+    on('player:update', players.updatePlayer);
+
+    on('lobby:create', lobbies.createLobby);
 });
 
 io.listen(port);

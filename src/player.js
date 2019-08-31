@@ -1,22 +1,31 @@
 class Player
 {
-    constructor(id, { name, lobby }) {
-        this._id = id;
-        this._name = name;
-        this._lobby = lobby;
+    constructor(id, { name })
+    {
+        this.id = id;
+        this.name = name;
     }
 
-    get id () {
-        return this._id;
+    inLobby() {
+        return this.lobby !== undefined;
     }
 
-    get lobby () {
-        return this._lobby;
+    update({ name })
+    {
+        this.name = name;
+
+        return this;
     }
 
-    update({ name, lobby }) {
-        this._name = name;
-        this._lobby = lobby;
+    toJSON()
+    {
+        const { ...all } = this;
+        return all;
+    }
+
+    toString()
+    {
+        return 'Player: ' + JSON.stringify(this.toJSON(), undefined, 4);
     }
 }
 
