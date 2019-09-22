@@ -1,31 +1,26 @@
-class Player
-{
-    constructor(id, { name })
-    {
+const _ = require('underscore');
+
+const defaultPlayerName = 'guest'
+
+class Player {
+    constructor(id, data) {
+        if(!id) throw new Error('id cannot be undefined');
+        if(!_.isObject(data)) data = {}
+
         this.id = id;
-        this.name = name;
+        this.name = data.name || defaultPlayerName;
     }
 
     inLobby() {
-        return this.lobby !== undefined;
+        return !_.isUndefined(this.lobby);
     }
 
-    update({ name })
-    {
-        this.name = name;
-
-        return this;
+    toJSON() {
+        return { ...this };
     }
 
-    toJSON()
-    {
-        const { ...all } = this;
-        return all;
-    }
-
-    toString()
-    {
-        return 'Player: ' + JSON.stringify(this.toJSON(), undefined, 4);
+    toString() {
+        return JSON.stringify(this.toJSON(), null, 4);
     }
 }
 

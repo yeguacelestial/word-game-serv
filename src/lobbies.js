@@ -1,53 +1,76 @@
-const emitter = require('./event_emmiter');
 const _ = require('underscore');
 const chalk = require('chalk');
 
 const Lobby = require('./lobby');
 
-var lobbies = {};
-var nextLobbyId = 0;
-var availableIds = [];
-
-function lobbyExists(id)
+class Lobbies
 {
-    return lobbies[id] !== undefined;
-}
+    constructor() {
+        this.lobbies = {};
 
-function createLobby(playerId, data)
-{
-    const id = availableIds.pop() || ++nextLobbyId;
-    const lobby = new Lobby(id, data);
+        this._playerLobbies = {};
+        this._lobbyCodes = [];
+        this._lastLobbyCode = 0;
+    }
 
-    if(lobby.addPlayer(playerId)) {
-        lobbies[id] = lobby;
+    createLobby(playerId, playerData, lobbyData) {
+        const code = this._generateCode();
 
-        console.log(chalk.green(lobby.toString()));
+        this._savePlayerCode(playerId, code);
+
+        let lobby = this.lobbies[code] = new Lobby(code, lobbyData);
+        console.log(chalk.green('Lobby Create', lobby));
+
+        lobby.addPlayer(new Player(playerId, playerData));
 
         return lobby;
     }
+
+    joinLobby(playerId, playerData, { code, password }) {
+        if(!this.hasLobby(code)) return null;
+
+        this._savePlayerCode(playerId, code);
+
+        let lobby = this.lobbies[code];
+        if(lobby.password !== password) return null;
+
+        lobby.addPlayer(new Player(playerId, playerData));
+
+        return lobby;
+    }
+
+    exitLobby(playerId) {
+        const code = this._playerLobbies[playerId];
+        if(_.isUndefined(code)) return null;
+
+        delete this._playerLobbies[playerId];
+
+        let lobby = this.lobbies[code];
+        lobby.removePlayer(playerId);
+
+        if(!lobby.empty()) return lobby;
+
+        console.log(chalk.red('Lobby Delete', lobby));
+
+        this._lobbyCodes.push(code);
+        delete this.lobbies[code];
+
+        console.log(chalk.red('Lobby Codes', JSON.stringify(this._lobbyCodes, null, 4)));
+
+        return null;
+    }
+
+    hasLobby(code) {
+        return !_.isUndefined(this.lobbies[code]);
+    }
+
+    _generateCode() {
+        return this._lobbyCodes.shift() || ++this._lastLobbyCode;
+    }
+
+    _savePlayerCode(playerId, code) {
+        this._playerLobbies[playerId] = code;
+    }
 }
 
-function deleteLobby(id)
-{
-    if(!lobbyExists(id)) return;
-
-    console.log(chalk.red(lobbies[id].toString()));
-
-    availableIds.push(id);
-    delete lobbies[id];
-}
-
-function removePlayer(id, playerId)
-{
-    if(!lobbyExists(id)) return;
-
-    lobbies[id].removePlayer(playerId);
-    if(lobbies[id].isEmpty()) deleteLobby(id);
-}
-
-emitter.on('lobby:player:exit', removePlayer);
-
-module.exports = {
-    lobbyExists,
-    createLobby
-}
+module.exports = Lobbies;
