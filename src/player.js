@@ -2,10 +2,22 @@ const _ = require('underscore');
 
 const defaultPlayerName = 'guest'
 
+class PlayerError extends Error
+{
+    constructor(message) {
+        super(message);
+        this.name = this.constructor.name;
+    }
+}
+
+const playerError = message => {
+    throw new PlayerError(message);
+}
+
 class Player {
     constructor(id, data) {
-        if(!id) throw new Error('id cannot be undefined');
-        if(!_.isObject(data)) data = {}
+        if(!id) playerError(`id is ${typeof id}.`);
+        if(!_.isObject(data)) playerError(`data is not an object. type of data is ${typeof data}.`);
 
         this.id = id;
         this.name = data.name || defaultPlayerName;
