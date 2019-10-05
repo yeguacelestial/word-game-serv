@@ -21,10 +21,35 @@ class Player {
 
         this.id = id;
         this.name = data.name || defaultPlayerName;
+        this.leader = false;
+        this.ready = false;
+    }
+
+    update(data) {
+        if(_.isObject(data)) {
+            this.name = data.name || defaultPlayerName;
+            this.ready = data.ready;
+        }
     }
 
     inLobby() {
         return !_.isUndefined(this.lobby);
+    }
+
+    isLeader() {
+        return this.leader;
+    }
+
+    makeLeader() {
+        this.leader = true;
+    }
+
+    toggleReady() {
+        this.ready = !this.ready;
+    }
+
+    makeReady() {
+        this.ready = true;
     }
 
     toJSON() {

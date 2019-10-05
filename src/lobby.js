@@ -49,7 +49,17 @@ class Lobby
         if(this.hasPlayer(id)) {
             console.log(chalk.blue('Player Remove', this.players[id]));
 
+            const wasLeader = this.players[id].isLeader();
+
             delete this.players[id];
+            if(wasLeader) this.newLeader();
+        }
+    }
+
+    updatePlayer(id, playerData) {
+        if(this.hasPlayer(id)) {
+            this.players[id].update(playerData);
+            console.log(chalk.blue('Player Update', this.players[id]));
         }
     }
 
@@ -69,6 +79,13 @@ class Lobby
 
     empty() {
         return _.isEmpty(this.players);
+    }
+
+    newLeader() {
+        for(const id in this.players) {
+            this.players[id].makeLeader();
+            break;
+        }
     }
 
     forAllPlayers(func) {

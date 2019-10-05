@@ -26,7 +26,7 @@ io.on('connection', socket => {
 
         if(lobby)
             lobby.forAllPlayers(playerId => {
-                io.to(`${playerId}`).emit('game:state', lobby);
+                io.to(`${playerId}`).emit('game:state', { you: playerId, ...lobby });
             });
     });
 
@@ -37,15 +37,18 @@ io.on('connection', socket => {
             }
         }
 
-        let lastLobby,
-            lobby = lobbies.createLobby(id, data.player, data.lobby, lastLobby);
+        let lastLobby = lobbies.removePlayerFromCurrentLobby(id),
+            lobby = lobbies.createLobby(id, data.player, data.lobby);
 
         if(lastLobby)
             lastLobby.forAllPlayers(playerId => {
-                io.to(`${playerId}`).emit('game:state', lobby);
+                io.to(`${playerId}`).emit('game:state', { you: playerId, ...lastLobby });
             });
 
-        if(lobby) return lobby;
+        if(lobby) return {
+            you: id,
+            ...lobby
+        };
 
         return {
             error: {
@@ -61,20 +64,53 @@ io.on('connection', socket => {
             }
         }
 
-        let lobby = lobbies.joinLobby(id, data.player, data.lobby);
+        let lastLobby = lobbies.removePlayerFromCurrentLobby(id),
+            lobby = lobbies.joinLobby(id, data.player, data.lobby);
+
+        if(lastLobby)
+            lastLobby.forAllPlayers(playerId => {
+                io.to(`${playerId}`).emit('game:state', { you: playerId, ...lastLobby });
+            });
+
         if(lobby) {
             lobby.forAllPlayers(playerId => {
                 if(playerId != id)
-                    io.to(`${playerId}`).emit('game:state', lobby);
+                    io.to(`${playerId}`).emit('game:state', { you: playerId, ...lobby });
             });
 
-            return lobby;
+            return {
+                you: id,
+                ...lobby
+            };
         }
 
         return {
             error: {
                 message: `Couldn't join lobby`
             }
+        }
+    });
+
+    on('game:update:player', (id, data) => {
+        if(!_.isObject(data)) return {
+            error: `Couldn't change nickname`
+        }
+
+        const lobby = lobbies.updatePlayer(id, data.player);
+        if(lobby) {
+            lobby.forAllPlayers(playerId => {
+                if(playerId != id)
+                    io.to(`${playerId}`).emit('game:state', { you: playerId, ...lobby });
+            });
+
+            return {
+                you: id,
+                ...lobby
+            }
+        }
+
+        return {
+            error: `Couldn't change nickname`
         }
     });
 });

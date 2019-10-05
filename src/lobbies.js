@@ -14,12 +14,12 @@ class Lobbies
         this._playerCurrentLobby = {};
     }
 
-    createLobby(playerId, playerData, lobbyData, lastLobby) {
+    createLobby(playerId, playerData, lobbyData) {
         try {
             let lobby = new Lobby(lobbyData),
                 player = new Player(playerId, playerData);
 
-            lastLobby = this.removePlayerFromCurrentLobby(playerId);
+            player.makeLeader();
 
             console.log(chalk.green('Lobby Create', lobby));
 
@@ -40,14 +40,12 @@ class Lobbies
         return null;
     }
 
-    joinLobby(playerId, playerData, lobbyData, lastLobby) {
+    joinLobby(playerId, playerData, lobbyData) {
         try {
             let lobby = this._getLobbyFromData(lobbyData),
                 player = new Player(playerId, playerData);
 
             if(this._correctLobbyPassword(lobby, lobbyData.password)) {
-                lastLobby = this.removePlayerFromCurrentLobby(playerId);
-
                 this._lobbyAddPlayer(lobby, player);
                 return lobby;
             }
@@ -71,6 +69,18 @@ class Lobbies
         if(!code) return null;
         const lobby = this.lobbies[code];
         return lobby ? lobby : null;
+    }
+
+    updatePlayer(playerId, playerData) {
+        if(!_.isObject(playerData)) return null;
+
+        let lobby = this._getPlayerCurrentLobby(playerId);
+        if(lobby) {
+            lobby.updatePlayer(playerId, playerData);
+            return lobby;
+        }
+
+        return null;
     }
 
     removePlayerFromCurrentLobby(playerId) {
@@ -120,6 +130,13 @@ class Lobbies
 
     _setPlayerCurrentLobby(playerId, code) {
         this._playerCurrentLobby[playerId] = code;
+    }
+
+    _getPlayerCurrentLobby(playerId) {
+        const code = this._playerCurrentLobby[playerId];
+        if(code) return this.lobbies[code];
+
+        return null;
     }
 }
 
