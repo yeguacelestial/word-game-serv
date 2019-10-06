@@ -4,113 +4,66 @@ const chalk = require('chalk');
 
 const port = 8000;
 
-const Lobbies = require('./lobbies');
-
-const lobbies = new Lobbies();
+const lobbies = require('./lobbies')();
 
 io.on('connection', socket => {
-    const on = (event, func) => socket.on(event, (data, callback) => {
-        const obj = _.isFunction(func) ? func(socket.id, data) :  null;
-        if(_.isFunction(callback)) callback(obj);
+    const id = socket.id;
+
+    const error = message => ({ message });
+
+    const gamestate = (currentLobby, currentPlayerId) => ({
+        currentPlayer: currentLobby ? currentLobby.getPlayer(currentPlayerId) : undefined,
+        currentLobby
     });
 
-    const emit = (event, data) => socket.emit(event, data);
+    const emitUpdate = (lobby, skipNotifier = true) => {
+        if(lobby) lobby.forAllPlayers((playerId, player) => {
+            if(playerId === id && skipNotifier) return;
+            io.to(`${playerId}`).emit('game:update', null, gamestate(lobby, playerId));
+        });
+    }
 
     console.log();
     console.log(chalk.green.bold('Player connected\nPlayer ID:', socket.id));
 
-    on('disconnect', (id, reason) => {
+    socket.on('disconnect', reason => {
         console.log(chalk.red.bold(`Player disconnected, reason: ${reason}\nPlayer ID: ${id}`));
 
-        let lobby = lobbies.removePlayerFromCurrentLobby(id);
-
-        if(lobby)
-            lobby.forAllPlayers(playerId => {
-                io.to(`${playerId}`).emit('game:state', { you: playerId, ...lobby });
-            });
+        emitUpdate(lobbies.removePlayerFromCurrentLobby(id));
     });
 
-    on('game:create', (id, data) => {
-        if(!_.isObject(data)) return {
-            error: {
-                message: 'Lobby code or password is incorrect'
-            }
-        }
-
+    socket.on('game:create:lobby', (player, lobby, callback) => {
         let lastLobby = lobbies.removePlayerFromCurrentLobby(id),
-            lobby = lobbies.createLobby(id, data.player, data.lobby);
+            createdLobby = lobbies.createLobby(id, player, lobby);
 
-        if(lastLobby)
-            lastLobby.forAllPlayers(playerId => {
-                io.to(`${playerId}`).emit('game:state', { you: playerId, ...lastLobby });
-            });
+        emitUpdate(lastLobby);
 
-        if(lobby) return {
-            you: id,
-            ...lobby
-        };
-
-        return {
-            error: {
-                message: `Couldn't create lobby`
-            }
+        if(_.isFunction(callback)) {
+            if(createdLobby) callback(null, gamestate(createdLobby, id));
+            else callback(error(`Couldn't create lobby`));
         }
     });
 
-    on('game:join', (id, data) => {
-        if(!_.isObject(data)) return {
-            error: {
-                message: 'Lobby code or password is incorrect'
-            }
-        }
-
+    socket.on('game:join:lobby', (player, lobby, callback) => {
         let lastLobby = lobbies.removePlayerFromCurrentLobby(id),
-            lobby = lobbies.joinLobby(id, data.player, data.lobby);
+            joinedLobby = lobbies.joinLobby(id, player, lobby);
 
-        if(lastLobby)
-            lastLobby.forAllPlayers(playerId => {
-                io.to(`${playerId}`).emit('game:state', { you: playerId, ...lastLobby });
-            });
+        emitUpdate(lastLobby);
+        emitUpdate(joinedLobby);
 
-        if(lobby) {
-            lobby.forAllPlayers(playerId => {
-                if(playerId != id)
-                    io.to(`${playerId}`).emit('game:state', { you: playerId, ...lobby });
-            });
-
-            return {
-                you: id,
-                ...lobby
-            };
-        }
-
-        return {
-            error: {
-                message: `Couldn't join lobby`
-            }
+        if(_.isFunction(callback)) {
+            if(joinedLobby) callback(null, gamestate(joinedLobby, id));
+            else callback(error(`Couldn't join lobby`));
         }
     });
 
-    on('game:update:player', (id, data) => {
-        if(!_.isObject(data)) return {
-            error: `Couldn't change nickname`
-        }
+    socket.on('game:update:player', (player, callback) => {
+        const currentLobby = lobbies.updatePlayer(id, player);
+        emitUpdate(currentLobby, id);
 
-        const lobby = lobbies.updatePlayer(id, data.player);
-        if(lobby) {
-            lobby.forAllPlayers(playerId => {
-                if(playerId != id)
-                    io.to(`${playerId}`).emit('game:state', { you: playerId, ...lobby });
-            });
-
-            return {
-                you: id,
-                ...lobby
-            }
-        }
-
-        return {
-            error: `Couldn't change nickname`
+        if(_.isFunction(callback)) {
+            if(currentLobby) callback(null, gamestate(currentLobby, id));
+            else callback(error(`Couldn't change nickname`));
         }
     });
 });

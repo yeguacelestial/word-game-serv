@@ -28,7 +28,7 @@ class Player {
     update(data) {
         if(_.isObject(data)) {
             this.name = data.name || defaultPlayerName;
-            this.ready = data.ready;
+            this.ready = data.ready === undefined ? false : data.ready;
         }
     }
 

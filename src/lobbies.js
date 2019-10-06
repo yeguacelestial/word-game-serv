@@ -4,7 +4,7 @@ const chalk = require('chalk');
 const Lobby = require('./lobby');
 const Player = require('./player');
 
-const logError = (func, playerId, error) => console.log(chalk.red.bold(func, error, 'Player ID:', playerId));
+const error = (func, playerId, error) => console.log(chalk.red.bold(func, error, 'Player ID:', playerId));
 
 class Lobbies
 {
@@ -27,11 +27,11 @@ class Lobbies
             this._lobbyAddPlayer(lobby, player);
 
             return lobby;
-        } catch(error) {
-            switch(error.name) {
+        } catch(e) {
+            switch(e.name) {
                 case 'LobbyError':
                 case 'PlayerError':
-                    logError('createLobby', playerId, error);
+                    error('createLobby', playerId, e);
                     break;
                 default: throw error;
             }
@@ -49,10 +49,10 @@ class Lobbies
                 this._lobbyAddPlayer(lobby, player);
                 return lobby;
             }
-        } catch(error) {
-            switch(error.name) {
+        } catch(e) {
+            switch(e.name) {
                 case 'PlayerError':
-                    logError('joinLobby', playerId, error);
+                    error('joinLobby', playerId, e);
                     break;
                 default: throw error;
             }
@@ -140,4 +140,4 @@ class Lobbies
     }
 }
 
-module.exports = Lobbies;
+module.exports = () => new Lobbies();
