@@ -1,17 +1,11 @@
 const _ = require('underscore');
-const chalk = require('chalk');
 
-class LobbyError extends Error
-{
-    constructor(message) {
-        super(message);
-        this.name = this.constructor.name;
-    }
-}
+const { LobbyError } = require('./error');
 
-const lobbyError = message => {
-    throw new LobbyError(message);
-}
+const log = require('./log');
+const is = require('./is');
+
+const Player = require('./player');
 
 let availableLobbyCodes = [],
     lastLobbyCode = 0;
@@ -19,9 +13,9 @@ let availableLobbyCodes = [],
 class Lobby
 {
     constructor(data) {
-        if(!_.isObject(data)) lobbyError(`data is not an object. type of data is ${typeof data}.`);
-        if(_.isUndefined(data.name)) lobbyError(`data.name is ${typeof data.name}.`);
-        if(_.isUndefined(data.password)) lobbyError(`data.password is ${typeof data.password}.`);
+        if(!is.Object(data)) LobbyError('Lobby data is incorrect.');
+        if(!this._isValidName(data.name)) LobbyError('Lobby name is incorrect.');
+        //if(!is.String(data.password)) LobbyError('Lobby password is incorrect.');
 
         this.code = this._generateCode();
         this.players = {};
@@ -30,86 +24,104 @@ class Lobby
         this.password = data.password;
     }
 
-    destroy() {
+
+    releaseCode() {
         availableLobbyCodes.push(this.code);
     }
 
-    addPlayer(player, callback) {
-        if(player) {
-            console.log(chalk.blue('Player Add', player));
+    addPlayer(player) {
+        if(!(player instanceof Player)) return;
 
-            player.lobby = this.code;
-            this.players[player.id] = player;
+        player.setLobby(this.code);
+        this.players[player.id] = player;
 
-            if(_.isFunction(callback)) callback(player.id, player);
-        }
+        log.info();
+        log.infobold('Player added to lobby.');
+        log.info(`Player '${player.name}' with ID: ${player.id}.`);
+        log.info(`Added to lobby with code: ${this.code}.`);
+        log.info('Player:', player);
+        log.info('Lobby:', this);
     }
 
     removePlayer(id) {
-        if(this.hasPlayer(id)) {
-            console.log(chalk.blue('Player Remove', this.players[id]));
+        const player = this.getPlayer(id);
+        if(!player) return;
 
-            const wasLeader = this.players[id].isLeader();
+        log.warning();
+        log.warningbold('Player removed from lobby.');
+        log.warning(`Player '${player.name}' with ID: ${id}.`);
+        log.warning(`Removed from lobby with code: ${this.code}.`);
+        log.warning('Player:', player);
+        log.warning('Lobby:', this);
 
-            delete this.players[id];
-            if(wasLeader) this.newLeader();
-        }
+        if(player.isLeader())
+            this._makeNewLeader(id);
+
+        delete this.players[id];
     }
 
-    updatePlayer(id, playerData) {
-        if(this.hasPlayer(id)) {
-            this.players[id].update(playerData);
-            console.log(chalk.blue('Player Update', this.players[id]));
-        }
+    updatePlayer(id, data) {
+        const player = this.getPlayer(id);
+        if(!player) return;
+
+        player.update(data);
+
+        log.info();
+        log.infobold('Player updated.');
+        log.info(`Player with ID: ${id}.`);
+        log.info(`Updated at lobby with code: ${this.code}.`);
+        log.info('Player:', player);
+        log.info('Lobby:', this);
     }
 
     getPlayer(id) {
-        if(id) return this.players[id];
-        return null;
+        return this.players[id];
     }
 
     hasPlayer(id) {
-        if(id) {
-            const player = this.players[id];
-            return !_.isUndefined(player);
-        }
-
-        return false;
+        return this.getPlayer(id) !== undefined;
     }
 
     empty() {
-        return _.isEmpty(this.players);
+        return is.Empty(this.players);
     }
 
-    newLeader() {
+    forAllPlayers(func) {
+        if(!is.Function(func)) return;
+
+        for(const id in this.players)
+            func(id, this.players[id]);
+    }
+
+    _makeNewLeader(lastLeader) {
         for(const id in this.players) {
-            this.players[id].makeLeader();
+            if(id === lastLeader) continue;
+
+            const player = this.players[id];
+            player.makeLeader();
+
+            log.info();
+            log.infobold('Lobby set new leader.');
+            log.info(`Player '${player.name}' with ID: ${id}.`);
+            log.info(`Is new leader of lobby with code: ${this.code}.`);
+            log.info('Player:', player);
+            log.info('Lobby:', this);
+
             break;
         }
     }
 
-    forAllPlayers(func) {
-        if(_.isFunction(func))
-            for(const id in this.players)
-                func(id, this.players[id]);
+    _isValidName(name) {
+        if(!is.String(name)) return false;
+        return true;
     }
 
     _generateCode() {
         return availableLobbyCodes.shift() || ++lastLobbyCode;
     }
 
-    toJSON() {
-        const { players, ...other } = this;
-
-        const object = {};
-        for(const id in players)
-            object[id] = players[id].toJSON();
-
-        return { players: object, ...other };
-    }
-
     toString() {
-        return JSON.stringify(this.toJSON(), null, 4);
+        return JSON.stringify(this, null, 2);
     }
 }
 

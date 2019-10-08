@@ -1,17 +1,17 @@
-const _ = require('underscore');
-const chalk = require('chalk');
+const log = require('./log');
+const is = require('./is');
 
 const Lobby = require('./lobby');
 const Player = require('./player');
 
-const error = (func, playerId, error) => console.log(chalk.red.bold(func, error, 'Player ID:', playerId));
+const error = (functionName, playerId, err) => log.error(err, functionName, 'Player ID:', playerId);
 
-class Lobbies
+class Game
 {
     constructor() {
         this.lobbies = {};
 
-        this._playerCurrentLobby = {};
+        this._playerCurrentLobbyCode = {};
     }
 
     createLobby(playerId, playerData, lobbyData) {
@@ -19,11 +19,14 @@ class Lobbies
             let lobby = new Lobby(lobbyData),
                 player = new Player(playerId, playerData);
 
+            log.success();
+            log.successbold('Lobby created.');
+            log.success(`Lobby with code: ${lobby.code}.`);
+            log.success(`Created by player '${player.name}' with ID: ${playerId}.`);
+
             player.makeLeader();
 
-            console.log(chalk.green('Lobby Create', lobby));
-
-            this._saveLobby(lobby);
+            this._addLobby(lobby);
             this._lobbyAddPlayer(lobby, player);
 
             return lobby;
@@ -31,113 +34,128 @@ class Lobbies
             switch(e.name) {
                 case 'LobbyError':
                 case 'PlayerError':
-                    error('createLobby', playerId, e);
-                    break;
-                default: throw error;
+                    error('createLobby', playerId, e); break;
+                default: throw e;
             }
-        }
 
-        return null;
+        }
     }
 
     joinLobby(playerId, playerData, lobbyData) {
         try {
-            let lobby = this._getLobbyFromData(lobbyData),
-                player = new Player(playerId, playerData);
+            let lobby = this._getLobbyFromData(lobbyData);
 
-            if(this._correctLobbyPassword(lobby, lobbyData.password)) {
-                this._lobbyAddPlayer(lobby, player);
-                return lobby;
+            if(!lobby) {
+                log.success();
+                log.errorbold('Error joining lobby. Lobby data is incorrect.');
+                return;
             }
+
+            let player = new Player(playerId, playerData);
+
+            if(!this._hasValidLobbyCredentials(lobby, lobbyData))
+                return;
+
+            log.success();
+            log.successbold('Player joined lobby.');
+            log.success(`Player '${player.name}' with ID: ${playerId}.`);
+            log.success(`Joined lobby with code: ${lobby.code}.`);
+
+            this._lobbyAddPlayer(lobby, player);
+            return lobby;
+
         } catch(e) {
-            switch(e.name) {
-                case 'PlayerError':
-                    error('joinLobby', playerId, e);
-                    break;
-                default: throw error;
-            }
+            if(e.name === 'PlayerError') error('joinLobby', playerId, e)
+            else throw e;
         }
-
-        return null;
-    }
-
-    hasLobby(code) {
-        return !_.isUndefined(this.lobbies[code]);
-    }
-
-    getLobby(code) {
-        if(!code) return null;
-        const lobby = this.lobbies[code];
-        return lobby ? lobby : null;
     }
 
     updatePlayer(playerId, playerData) {
-        if(!_.isObject(playerData)) return null;
+        if(!is.Object(playerData)) return;
 
-        let lobby = this._getPlayerCurrentLobby(playerId);
-        if(lobby) {
+        try {
+            let lobby = this._getPlayerCurrentLobby(playerId);
+            if(!lobby) return;
+
             lobby.updatePlayer(playerId, playerData);
             return lobby;
+        } catch(e) {
+            if(e.name === 'PlayerError') error(joinLobby.name, playerId, e)
+            else throw e;
         }
-
-        return null;
     }
 
     removePlayerFromCurrentLobby(playerId) {
-        const currentLobbyCode = this._playerCurrentLobby[playerId],
-              lobby = this.getLobby(currentLobbyCode);
+        const currentLobby = this._getPlayerCurrentLobby(playerId);
+        this._lobbyRemovePlayer(currentLobby, playerId);
 
-        return this._lobbyRemovePlayerById(lobby, playerId);
+        return currentLobby;
     }
 
-    _getLobbyFromData(lobbyData) {
-        if(!_.isObject(lobbyData)) return null;
-        return this.getLobby(lobbyData.code);
+    getLobby(code) {
+        return this.lobbies[code];
     }
 
-    _correctLobbyPassword(lobby, password) {
-        if(!lobby) return false;
-        return lobby.password === password;
+    hasLobby(code) {
+        return this.getLobby(code) !== undefined;
+    }
+
+    _addLobby(lobby) {
+        if(!(lobby instanceof Lobby)) return;
+        this.lobbies[lobby.code] = lobby;
     }
 
     _lobbyAddPlayer(lobby, player) {
-        if(lobby){
-            lobby.addPlayer(player);
-            this._setPlayerCurrentLobby(player.id, lobby.code);
-        }
+        if(!(lobby instanceof Lobby)) return;
+        if(!(player instanceof Player)) return;
+
+        lobby.addPlayer(player);
+        this._setPlayerCurrentLobbyCode(player.id, lobby.code);
     }
 
-    _lobbyRemovePlayerById(lobby, playerId) {
-        if(lobby) {
-            lobby.removePlayer(playerId);
+    _lobbyRemovePlayer(lobby, playerId) {
+        if(!(lobby instanceof Lobby)) return;
 
-            if(lobby.empty()) {
-                console.log(chalk.red('Lobby Delete', lobby));
+        lobby.removePlayer(playerId);
+        if(!lobby.empty()) return;
 
-                lobby.destroy();
-                delete this.lobbies[lobby.code];
-            }
+        log.warning();
+        log.warningbold('Lobby deleted.');
+        log.warning(`Lobby with code: ${lobby.code} deleted.`);
 
-            return lobby;
-        }
-
-        return null;
+        lobby.releaseCode();
+        this._deleteLobby(lobby.code);
     }
 
-    _saveLobby(lobby) {
-        if(lobby && lobby.code) this.lobbies[lobby.code] = lobby;
+    _deleteLobby(code) {
+        if(this.lobbies[code]) delete this.lobbies[code];
     }
 
-    _setPlayerCurrentLobby(playerId, code) {
-        this._playerCurrentLobby[playerId] = code;
+    _getLobbyFromData(lobbyData) {
+        if(!is.Object(lobbyData)) return undefined;
+        return this.getLobby(lobbyData.code);
     }
 
     _getPlayerCurrentLobby(playerId) {
-        const code = this._playerCurrentLobby[playerId];
-        if(code) return this.lobbies[code];
+        return this.lobbies[this._getPlayerCurrentLobbyCode(playerId)];
+    }
 
-        return null;
+    _setPlayerCurrentLobbyCode(playerId, code) {
+        if(!playerId || !code) return;
+        this._playerCurrentLobbyCode[playerId] = code;
+    }
+
+    _getPlayerCurrentLobbyCode(playerId) {
+        return this._playerCurrentLobbyCode[playerId];
+    }
+
+    _hasValidLobbyCredentials(lobby, data) {
+        if(!(lobby instanceof Lobby)) return false;
+        if(!lobby.password) return true; // Password is correct if left empty.
+        if(!is.Object(data)) return false;
+
+        return lobby.password === data.password;
     }
 }
 
-module.exports = () => new Lobbies();
+module.exports = () => new Game();

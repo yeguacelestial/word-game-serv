@@ -1,72 +1,82 @@
 const io = require('socket.io')();
-const _ = require('underscore');
-const chalk = require('chalk');
+
+const is = require('./is');
+const log = require('./log');
+
+const lobbies = require('./lobbies')();
 
 const port = 8000;
 
-const lobbies = require('./lobbies')();
 
 io.on('connection', socket => {
     const id = socket.id;
 
     const error = message => ({ message });
 
-    const gamestate = (currentLobby, currentPlayerId) => ({
-        currentPlayer: currentLobby ? currentLobby.getPlayer(currentPlayerId) : undefined,
-        currentLobby
+    const gamestate = (lobby, playerId) => ({
+        player: lobby ? lobby.getPlayer(playerId) : undefined,
+        lobby,
+        gamemodeVotes: {}
     });
 
     const emitUpdate = (lobby, skipNotifier = true) => {
         if(lobby) lobby.forAllPlayers((playerId, player) => {
             if(playerId === id && skipNotifier) return;
-            io.to(`${playerId}`).emit('game:update', null, gamestate(lobby, playerId));
+            io.to(`${playerId}`).emit('lobbies:update', null, gamestate(lobby, playerId));
         });
     }
 
-    console.log();
-    console.log(chalk.green.bold('Player connected\nPlayer ID:', socket.id));
+    log.success();
+    log.successbold('Player connected.');
+    log.success(`Player ID: ${id}`);
 
     socket.on('disconnect', reason => {
-        console.log(chalk.red.bold(`Player disconnected, reason: ${reason}\nPlayer ID: ${id}`));
+        log.error();
+        log.errorbold(`Player disconnected, reason: ${reason}.\nPlayer ID ${id}`);
 
         emitUpdate(lobbies.removePlayerFromCurrentLobby(id));
     });
 
-    socket.on('game:create:lobby', (player, lobby, callback) => {
+    socket.on('lobbies:create:lobby', (player, lobby, callback) => {
         let lastLobby = lobbies.removePlayerFromCurrentLobby(id),
             createdLobby = lobbies.createLobby(id, player, lobby);
 
         emitUpdate(lastLobby);
 
-        if(_.isFunction(callback)) {
+        if(is.Function(callback)) {
             if(createdLobby) callback(null, gamestate(createdLobby, id));
             else callback(error(`Couldn't create lobby`));
         }
     });
 
-    socket.on('game:join:lobby', (player, lobby, callback) => {
+    socket.on('lobbies:join:lobby', (player, lobby, callback) => {
         let lastLobby = lobbies.removePlayerFromCurrentLobby(id),
             joinedLobby = lobbies.joinLobby(id, player, lobby);
 
         emitUpdate(lastLobby);
         emitUpdate(joinedLobby);
 
-        if(_.isFunction(callback)) {
+        if(is.Function(callback)) {
             if(joinedLobby) callback(null, gamestate(joinedLobby, id));
             else callback(error(`Couldn't join lobby`));
         }
     });
 
-    socket.on('game:update:player', (player, callback) => {
+    socket.on('lobbies:update:player', (player, callback) => {
         const currentLobby = lobbies.updatePlayer(id, player);
         emitUpdate(currentLobby, id);
 
-        if(_.isFunction(callback)) {
+        if(is.Function(callback)) {
             if(currentLobby) callback(null, gamestate(currentLobby, id));
             else callback(error(`Couldn't change nickname`));
         }
     });
+
+    /*
+    socket.on('lobbies:gamemode:vote', (mode, callback) => {
+    });
+    */
 });
 
 io.listen(port);
-console.log('Listening on port', port);
+log.info('Listening on port', port);

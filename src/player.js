@@ -1,39 +1,36 @@
 const _ = require('underscore');
 
+const { PlayerError } = require('./error');
+
+const is = require('./is');
+
 const defaultPlayerName = 'guest'
-
-class PlayerError extends Error
-{
-    constructor(message) {
-        super(message);
-        this.name = this.constructor.name;
-    }
-}
-
-const playerError = message => {
-    throw new PlayerError(message);
-}
 
 class Player {
     constructor(id, data) {
-        if(!id) playerError(`id is ${typeof id}.`);
-        if(!_.isObject(data)) playerError(`data is not an object. type of data is ${typeof data}.`);
+        if(!id) PlayerError('Player ID is incorrect.');
+        if(!is.Object(data)) PlayerError('Player data is incorrect.');
 
         this.id = id;
-        this.name = data.name || defaultPlayerName;
+        this.name = this._getValidName(data.name);
+
         this.leader = false;
         this.ready = false;
     }
 
     update(data) {
-        if(_.isObject(data)) {
-            this.name = data.name || defaultPlayerName;
-            this.ready = data.ready === undefined ? false : data.ready;
-        }
+        if(!is.Object(data)) PlayerError('Player data is incorrect.');
+
+        this.name = this._getValidName(data.name);
+        this.ready = data.ready === undefined ? false : data.ready;
     }
 
     inLobby() {
         return !_.isUndefined(this.lobby);
+    }
+
+    setLobby(code) {
+        this.lobby = code;
     }
 
     isLeader() {
@@ -52,12 +49,12 @@ class Player {
         this.ready = true;
     }
 
-    toJSON() {
-        return { ...this };
+    _getValidName(name) {
+        return name || defaultPlayerName;
     }
 
     toString() {
-        return JSON.stringify(this.toJSON(), null, 4);
+        return JSON.stringify(this, null, 2);
     }
 }
 
